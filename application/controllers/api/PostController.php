@@ -1723,7 +1723,7 @@ public function all_my_post_pagination_post()
         foreach ($image_data as $img) {
             $images[] = [
                 "post_image_id" => (int)$img['id'],
-                "url" => "https://insta.vihaanshika.com/" . $img['new_post'],
+                "url" => adv_media_url($img['new_post']),
                 "type" => pathinfo($img['new_post'], PATHINFO_EXTENSION),
                 "post_video_thumbnail" => ""
             ];
@@ -1738,9 +1738,9 @@ public function all_my_post_pagination_post()
         foreach ($video_data as $video) {
             $images[] = [
                 "post_image_id" => (int)$video['id'],
-                "url" => "https://insta.vihaanshika.com/" . $video['post_video'],
+                "url" => adv_media_url($video['post_video']),
                 "type" => "video",
-                "post_video_thumbnail" => "https://insta.vihaanshika.com/" . $video['post_video_thumbnail']
+                "post_video_thumbnail" => adv_media_url($video['post_video_thumbnail'])
             ];
         }
 
@@ -4211,9 +4211,9 @@ private function _format_reel($post, $login_user_id, $isBoostPost = "0")
 
     foreach ($videos as $vid) {
         $post_videos[] = [
-            "url" => base_url($vid['post_video']),
+            "url" => adv_media_url($vid['post_video']),
             "type" => "video",
-            "post_video_thumbnail" => base_url($vid['post_video_thumbnail'])
+            "post_video_thumbnail" => adv_media_url($vid['post_video_thumbnail'])
         ];
     }
 
@@ -4265,7 +4265,9 @@ private function _format_reel($post, $login_user_id, $isBoostPost = "0")
         "created_at"     => $post->created_at,
         "post_videos"    => $post_videos,
         "username"       => $post->username ?? "",
-        "profile_pic"    => $post->profile_pic ?? "",
+        "profile_pic"    => !empty($post->profile_pic)
+            ? adv_profile_pic_url($post->profile_pic)
+            : adv_profile_pic_url(''),
         "mobile"         => $post->mobile ?? "",
         "is_liked"       => $is_liked,
         "is_bookmark"    => $is_bookmark,
@@ -4463,10 +4465,10 @@ public function all_my_reel_pagination_post()
         foreach ($videos as $img) {
             $videoArray[] = [
                 "reel_image_id"        => intval($img->id),
-                "reel_video"           => base_url($img->post_video),
+                "reel_video"           => adv_media_url($img->post_video),
                 "type"                 => "video",
                 "reel_video_thumbnail" => $img->post_video_thumbnail
-                    ? base_url($img->post_video_thumbnail)
+                    ? adv_media_url($img->post_video_thumbnail)
                     : ""
             ];
         }
@@ -4816,8 +4818,6 @@ public function get_all_reels_datainshow_post()
     $this->load->model("User_model");
     $this->load->model("Reel_model");
 
-    $baseURL = "https://insta.vihaanshika.com/";
-
     /* ================= INPUT ================= */
     $input = json_decode(file_get_contents("php://input"), true);
     if (!$input) $input = $_POST;
@@ -4861,10 +4861,10 @@ public function get_all_reels_datainshow_post()
 
                 $media[] = [
                     "post_image_id" => (string)$vid->id,
-                    "url" => $baseURL . $vid->post_video,
+                    "url" => adv_media_url($vid->post_video),
                     "type" => "video",
                     "post_video_thumbnail" => !empty($vid->post_video_thumbnail)
-                        ? $baseURL . $vid->post_video_thumbnail
+                        ? adv_media_url($vid->post_video_thumbnail)
                         : ""
                 ];
             }
@@ -4878,7 +4878,7 @@ public function get_all_reels_datainshow_post()
 
                 $media[] = [
                     "post_image_id" => (string)$img->id,
-                    "url" => $baseURL . $img->new_post,
+                    "url" => adv_media_url($img->new_post),
                     "type" => "image"
                 ];
             }
@@ -4950,8 +4950,6 @@ public function all_my_tag_post_pagination_post()
 {
     header("Content-Type: application/json; charset=utf-8");
     date_default_timezone_set("Asia/Kolkata");
-
-    $baseURL = "https://insta.vihaanshika.com/";
 
     /* ============================
        AUTH USER
@@ -5042,12 +5040,9 @@ public function all_my_tag_post_pagination_post()
         ============================ */
         $post_user = $this->db->where("id", $p->user_id)->get("users")->row();
 
-        $profile_image = "";
-        if (!empty($post_user->profile_pic)) {
-            $profile_image = filter_var($post_user->profile_pic, FILTER_VALIDATE_URL)
-                ? $post_user->profile_pic
-                : $baseURL . ltrim($post_user->profile_pic, '/');
-        }
+        $profile_image = !empty($post_user->profile_pic)
+            ? adv_profile_pic_url($post_user->profile_pic)
+            : adv_profile_pic_url('');
 
         /* ============================
            FOLLOW / BLOCK
@@ -5072,21 +5067,21 @@ public function all_my_tag_post_pagination_post()
         foreach ($imgQuery as $img) {
             $media[] = [
                 "post_image_id"        => (int)$img->id,
-                "url"                  => !empty($img->new_post) ? $baseURL . ltrim($img->new_post, '/') : "",
+                "url"                  => !empty($img->new_post) ? adv_media_url($img->new_post) : "",
                 "type"                 => "image",
                 "post_video_thumbnail" => ""
             ];
         }
 
-        // VIDEOS ✅ FIXED
+        // VIDEOS
         $vidQuery = $this->db->where("post_id", $post_id)->get("post_video")->result();
         foreach ($vidQuery as $vid) {
             $media[] = [
                 "post_image_id"        => (int)$vid->id,
-                "url"                  => !empty($vid->post_video) ? $baseURL . ltrim($vid->post_video, '/') : "",
-                "type"                 => "video", // 🔥 IMPORTANT FIX
+                "url"                  => !empty($vid->post_video) ? adv_media_url($vid->post_video) : "",
+                "type"                 => "video",
                 "post_video_thumbnail" => !empty($vid->post_video_thumbnail)
-                    ? $baseURL . ltrim($vid->post_video_thumbnail, '/')
+                    ? adv_media_url($vid->post_video_thumbnail)
                     : ""
             ];
         }
@@ -5109,8 +5104,8 @@ public function all_my_tag_post_pagination_post()
                 "first_name"  => $u->first_name ?? "",
                 "last_name"   => $u->last_name ?? "",
                 "profile_pic" => !empty($u->profile_pic)
-                    ? $baseURL . ltrim($u->profile_pic, '/')
-                    : ""
+                    ? adv_profile_pic_url($u->profile_pic)
+                    : adv_profile_pic_url('')
             ];
         }
 
