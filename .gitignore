@@ -1,0 +1,43 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+nbproject/
+
+# Environment overrides
+private/environment.php
+
+# Secrets (keep example filenames only)
+private/credentials/*.json
+private/credentials/*.jsons
+!private/credentials/index.html
+!private/credentials/.gitkeep
+
+# Runtime
+storage/cache/*
+!storage/cache/index.html
+storage/logs/*
+!storage/logs/index.html
+storage/sessions/*
+!storage/sessions/index.html
+
+application/cache/*
+!application/cache/index.html
+application/logs/*
+!application/logs/index.html
+
+# Composer
+/vendor/
+composer.lock
+
+# Hosting logs (server-generated)
+/logs/*.log
+
+# Local overrides
+application/config/aws.php
+
+# Tests / junk
+tests/mocks/database/ci_test.sqlite
+user_guide_src/build/

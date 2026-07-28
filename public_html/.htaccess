@@ -1,0 +1,30 @@
+# AdvPost — production web root
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block hidden files (.env, .git, etc.)
+    RewriteRule (^|/)\. - [F,L]
+
+    # Front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+Options -Indexes
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Deny direct download of secrets / backups if they ever land in docroot
+<FilesMatch "(?i)\.(env|ini|log|sql|bak| Dist|json|jsons)$">
+    <IfModule authz_core_module>
+        Require all denied
+    </IfModule>
+    <IfModule !authz_core_module>
+        Deny from all
+    </IfModule>
+</FilesMatch>

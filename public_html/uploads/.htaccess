@@ -1,0 +1,9 @@
+Options -Indexes
+<FilesMatch "\.(?i:php|phtml|php3|php4|php5|phar|cgi|pl)$">
+    <IfModule authz_core_module>
+        Require all denied
+    </IfModule>
+    <IfModule !authz_core_module>
+        Deny from all
+    </IfModule>
+</FilesMatch>

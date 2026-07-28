@@ -1,0 +1,8 @@
+<?php
+/**
+ * Copy to environment.php (same folder) to force the CI environment.
+ * environment.php is gitignored.
+ *
+ * Values: development | testing | production
+ */
+define('ENVIRONMENT', 'production');
