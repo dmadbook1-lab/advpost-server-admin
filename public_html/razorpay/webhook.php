@@ -3,8 +3,21 @@
 // Razorpay Webhook Handler
 // ===============================
 
-// ⚠️ Webhook secret (Dashboard se milega)
-$webhookSecret = "YOUR_WEBHOOK_SECRET_HERE";
+$__advpost_root = dirname(__FILE__) . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
+$__advpost_load_env = $__advpost_root . 'private' . DIRECTORY_SEPARATOR . 'load_env.php';
+if (is_file($__advpost_load_env)) {
+    require_once $__advpost_load_env;
+    advpost_load_env($__advpost_root);
+}
+unset($__advpost_root, $__advpost_load_env);
+
+// Webhook secret from .env
+$webhookSecret = function_exists('adv_env') ? adv_env('RAZORPAY_WEBHOOK_SECRET', '') : '';
+if ($webhookSecret === '') {
+    http_response_code(500);
+    echo 'Webhook secret not configured';
+    exit;
+}
 
 // Raw POST body
 $payload = file_get_contents("php://input");

@@ -15,7 +15,10 @@ define('ROOTPATH', dirname(__DIR__) . DIRECTORY_SEPARATOR);
 define('BASEPATH', ROOTPATH . 'system' . DIRECTORY_SEPARATOR);
 define('FCPATH', ROOTPATH . 'public_html' . DIRECTORY_SEPARATOR);
 define('APPPATH', ROOTPATH . 'application' . DIRECTORY_SEPARATOR);
-define('ENVIRONMENT', 'development');
+
+require_once ROOTPATH . 'private' . DIRECTORY_SEPARATOR . 'load_env.php';
+advpost_load_env(ROOTPATH);
+define('ENVIRONMENT', advpost_resolve_environment());
 
 require APPPATH . 'config/aws.php';
 
@@ -26,7 +29,7 @@ $region = $config['region'] ?? 'ap-south-1';
 $base_url = rtrim($config['url'] ?? ('https://' . $bucket . '.s3.' . $region . '.amazonaws.com'), '/');
 
 if ($access === '' || $secret === '' || $bucket === '') {
-    fwrite(STDERR, "S3 credentials missing in application/config/aws.php\n");
+    fwrite(STDERR, "S3 credentials missing (.env AWS_* / application/config/aws.php)\n");
     exit(1);
 }
 

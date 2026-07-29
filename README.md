@@ -50,15 +50,16 @@ cd public_html
 php -S localhost:8080 router.php
 ```
 
-Optional: copy `private/environment.php.example` → `private/environment.php` and set `development` or `production`.
+Optional: copy `.env.example` → `.env` and set production (`DB_*`) and local (`DB_LOCAL_*`) credentials.
+Optional: copy `private/environment.php.example` → `private/environment.php` and set `development` or `production` (or use `CI_ENV` in `.env`).
 
 ## Deploy checklist
 
 1. Point the vhost / hosting **document root** at `public_html/` (not the project root).
 2. Ensure `storage/` is writable by PHP (`cache`, `logs`, `sessions`).
 3. Place Firebase key at `private/credentials/advpost-firebase.json`.
-4. Configure `application/config/database.php` and `application/config/aws.php` on the server.
-5. Set `CI_ENV=production` (or use `private/environment.php`).
+4. Copy `.env.example` → `.env` and set DB, AWS, Razorpay, and `BASE_URL` (never commit `.env`).
+5. Set `CI_ENV=production` in `.env` (or use `private/environment.php`).
 6. Keep Composer deps at project root: `composer install --no-dev` from the project root.
 
 ## Media & S3

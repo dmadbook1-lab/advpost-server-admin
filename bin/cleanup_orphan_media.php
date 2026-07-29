@@ -24,7 +24,10 @@ define('ROOTPATH', dirname(__DIR__) . DIRECTORY_SEPARATOR);
 define('BASEPATH', ROOTPATH . 'system' . DIRECTORY_SEPARATOR);
 define('FCPATH', ROOTPATH . 'public_html' . DIRECTORY_SEPARATOR);
 define('APPPATH', ROOTPATH . 'application' . DIRECTORY_SEPARATOR);
-define('ENVIRONMENT', 'production');
+
+require_once ROOTPATH . 'private' . DIRECTORY_SEPARATOR . 'load_env.php';
+advpost_load_env(ROOTPATH);
+define('ENVIRONMENT', advpost_resolve_environment());
 
 $dry_run = in_array('--dry-run', $argv, true);
 

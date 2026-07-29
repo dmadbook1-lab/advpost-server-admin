@@ -23,7 +23,10 @@ define('APPPATH', ROOTPATH . 'application' . DIRECTORY_SEPARATOR);
 define('STORAGEPATH', ROOTPATH . 'storage' . DIRECTORY_SEPARATOR);
 define('VENDORPATH', ROOTPATH . 'vendor' . DIRECTORY_SEPARATOR);
 define('CREDENTIALSPATH', ROOTPATH . 'private' . DIRECTORY_SEPARATOR . 'credentials' . DIRECTORY_SEPARATOR);
-define('ENVIRONMENT', 'production');
+
+require_once ROOTPATH . 'private' . DIRECTORY_SEPARATOR . 'load_env.php';
+advpost_load_env(ROOTPATH);
+define('ENVIRONMENT', advpost_resolve_environment());
 
 $dry_run = in_array('--dry-run', $argv, true);
 

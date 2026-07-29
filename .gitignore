@@ -8,6 +8,9 @@ nbproject/
 
 # Environment overrides
 private/environment.php
+.env
+.env.local
+.env.*.local
 
 # Secrets (keep example filenames only)
 private/credentials/*.json
@@ -34,9 +37,6 @@ composer.lock
 
 # Hosting logs (server-generated)
 /logs/*.log
-
-# Local overrides
-application/config/aws.php
 
 # Tests / junk
 tests/mocks/database/ci_test.sqlite

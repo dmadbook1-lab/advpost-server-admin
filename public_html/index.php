@@ -38,6 +38,22 @@
 
 /*
  *---------------------------------------------------------------
+ * LOAD .env (project root)
+ *---------------------------------------------------------------
+ *
+ * All secrets (DB, AWS, Razorpay, etc.) come from ../.env
+ */
+	$__advpost_root = dirname(__FILE__) . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
+	$__advpost_load_env = $__advpost_root . 'private' . DIRECTORY_SEPARATOR . 'load_env.php';
+	if (is_file($__advpost_load_env))
+	{
+		require_once $__advpost_load_env;
+		advpost_load_env($__advpost_root);
+	}
+	unset($__advpost_root, $__advpost_load_env);
+
+/*
+ *---------------------------------------------------------------
  * APPLICATION ENVIRONMENT
  *---------------------------------------------------------------
  *
@@ -54,26 +70,11 @@
  * NOTE: If you change these, also change the error_reporting() code below
  */
 	/*
-	 * Prefer CI_ENV from the server, then private/environment.php, then host heuristic.
-	 * Local hosts default to development; everything else defaults to production.
+	 * Local HTTP host → development (DB_LOCAL_*). Server / CI_ENV → production (DB_*).
 	 */
-	if (isset($_SERVER['CI_ENV']) && $_SERVER['CI_ENV'] !== '')
+	if ( ! defined('ENVIRONMENT'))
 	{
-		define('ENVIRONMENT', $_SERVER['CI_ENV']);
-	}
-	elseif (is_file(dirname(__FILE__) . '/../private/environment.php'))
-	{
-		include dirname(__FILE__) . '/../private/environment.php';
-		if ( ! defined('ENVIRONMENT'))
-		{
-			define('ENVIRONMENT', 'production');
-		}
-	}
-	else
-	{
-		$host = isset($_SERVER['HTTP_HOST']) ? strtolower($_SERVER['HTTP_HOST']) : '';
-		$is_local = ($host === '' || $host === 'localhost' || strpos($host, '127.0.0.1') === 0 || substr($host, -6) === '.local');
-		define('ENVIRONMENT', $is_local ? 'development' : 'production');
+		define('ENVIRONMENT', advpost_resolve_environment());
 	}
 
 /*

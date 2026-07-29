@@ -23,7 +23,9 @@ ini_set("error_reporting", E_ALL & ~E_DEPRECATED);
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'https://admin.advpost.in/';
+$config['base_url'] = (defined('ENVIRONMENT') && ENVIRONMENT !== 'production' && function_exists('adv_env') && adv_env('BASE_URL_LOCAL', '') !== '')
+	? adv_env('BASE_URL_LOCAL', '')
+	: (function_exists('adv_env') ? adv_env('BASE_URL', 'https://admin.advpost.in/') : 'https://admin.advpost.in/');
 
 /*
 |--------------------------------------------------------------------------
@@ -326,7 +328,7 @@ $config['cache_query_string'] = FALSE;
 | https://codeigniter.com/userguide3/libraries/encryption.html
 |
 */
-$config['encryption_key'] = '';
+$config['encryption_key'] = function_exists('adv_env') ? adv_env('ENCRYPTION_KEY', '') : '';
 
 /*
 |--------------------------------------------------------------------------

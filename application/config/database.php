@@ -73,20 +73,21 @@ defined('BASEPATH') or exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+// DB_LOCAL_* when ENVIRONMENT=development; DB_* when production (see private/load_env.php).
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => 'localhost',
-	'username' => 'root',
-	'password' => '      ',
-	'database' => 'advpost_db',
-	'dbdriver' => 'mysqli',
+	'hostname' => function_exists('adv_db_env') ? adv_db_env('HOST', '127.0.0.1') : '127.0.0.1',
+	'username' => function_exists('adv_db_env') ? adv_db_env('USERNAME', 'root') : 'root',
+	'password' => function_exists('adv_db_env') ? adv_db_env('PASSWORD', '') : '',
+	'database' => function_exists('adv_db_env') ? adv_db_env('DATABASE', 'advpost_db') : 'advpost_db',
+	'dbdriver' => function_exists('adv_db_env') ? adv_db_env('DRIVER', 'mysqli') : 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
 	'db_debug' => (ENVIRONMENT !== 'production'),
 	'cache_on' => FALSE,
 	'cachedir' => '',
-	'char_set' => 'utf8',
-	'dbcollat' => 'utf8_general_ci',
+	'char_set' => function_exists('adv_db_env') ? adv_db_env('CHARSET', 'utf8') : 'utf8',
+	'dbcollat' => function_exists('adv_db_env') ? adv_db_env('COLLATION', 'utf8_general_ci') : 'utf8_general_ci',
 	'swap_pre' => '',
 	'encrypt' => FALSE,
 	'compress' => FALSE,
