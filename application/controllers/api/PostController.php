@@ -990,12 +990,27 @@ public function add_post_post()
     $this->db->query("SET NAMES utf8mb4");
 
     // 🔹 Get Bearer token from Authorization header
-    $headers = apache_request_headers();
-    $token = null;
-    if (isset($headers['Authorization'])) {
-        if (preg_match('/Bearer\s(\S+)/', $headers['Authorization'], $matches)) {
-            $token = $matches[1];
+    // Prefer CI / $_SERVER so this works on Apache AND PHP's built-in server
+    // (apache_request_headers() often omits Authorization under `php -S`).
+    $authHeader = $this->input->get_request_header('Authorization');
+    if (empty($authHeader)) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+            ?? '';
+    }
+    if (empty($authHeader) && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        foreach ($headers as $key => $value) {
+            if (strcasecmp($key, 'Authorization') === 0) {
+                $authHeader = $value;
+                break;
+            }
         }
+    }
+
+    $token = null;
+    if (!empty($authHeader) && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
+        $token = $matches[1];
     }
 
     if (empty($token)) {
