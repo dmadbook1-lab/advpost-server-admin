@@ -92,7 +92,7 @@ class Story_model extends CI_Model
         $query = $this->db
             ->select('status_id AS status_id, language, status, default_status, country, language_alignment')
             ->from('language_statuses')
-            ->where('id', $status_id)
+            ->where('status_id', $status_id)
             ->limit(1)
             ->get();
 

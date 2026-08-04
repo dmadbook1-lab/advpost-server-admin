@@ -1156,12 +1156,24 @@ public function add_post_post()
         // 🔹 Video Upload → S3
         // reels → users/{uid}/reels/{post_id}/videos|thumbnails/
         // posts → users/{uid}/posts/{post_id}/videos|thumbnails/
+        $videoUploaded = false;
         if (!empty($_FILES['post_video']['name'])) {
             $videos     = ensure_array($_FILES['post_video']);
-            $thumbnails = ensure_array($_FILES['post_video_thumbnail']);
+            $thumbnails = ensure_array($_FILES['post_video_thumbnail'] ?? []);
 
             foreach ($videos['name'] as $index => $videoFile) {
-                if ((int) $videos['error'][$index] !== 0 || empty($videos['tmp_name'][$index])) {
+                $uploadError = (int) $videos['error'][$index];
+                if ($uploadError !== 0 || empty($videos['tmp_name'][$index])) {
+                    // Surface PHP upload limit / size failures instead of silently
+                    // creating an empty reel post.
+                    if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+                        throw new Exception(
+                            'Video is too large for this server upload limit. Increase upload_max_filesize/post_max_size.'
+                        );
+                    }
+                    if ($uploadError !== UPLOAD_ERR_NO_FILE) {
+                        throw new Exception('Video upload failed (PHP error code ' . $uploadError . ')');
+                    }
                     continue;
                 }
 
@@ -1197,7 +1209,14 @@ public function add_post_post()
                     'post_video_thumbnail' => $thumbUrl,
                     'created_at'           => date('Y-m-d H:i:s')
                 ]);
+                $videoUploaded = true;
             }
+        }
+
+        if ($post_type === 'reel' && !$videoUploaded) {
+            // Roll back empty reel rows so the client can retry.
+            $this->db->where('id', $post_id)->delete('posts');
+            throw new Exception('Reel video file is missing or failed to upload. Please try again.');
         }
 
         // 🔹 Hashtag Save
@@ -2201,14 +2220,44 @@ public function post_add_comment_post()
 
 private function validate_token_get_user_id()
 {
-    $headers = getallheaders();
-    if (!isset($headers['Authorization'])) return false;
-    
-    $token = str_replace('Bearer ', '', $headers['Authorization']);
-    
+    $token = $this->_get_bearer_token();
+    if ($token === '') {
+        return false;
+    }
+
     // Lookup user by token
     $user = $this->db->get_where('users', ['token' => $token])->row();
     return $user ? $user->id : false;
+}
+
+/**
+ * Read Bearer token in a way that works on Apache and PHP's built-in server.
+ * `getallheaders()` often omits Authorization under `php -S`.
+ */
+private function _get_bearer_token()
+{
+    $authHeader = $this->input->get_request_header('Authorization');
+    if (empty($authHeader)) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+            ?? '';
+    }
+    if (empty($authHeader) && function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            foreach ($headers as $key => $value) {
+                if (strcasecmp((string) $key, 'Authorization') === 0) {
+                    $authHeader = $value;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!empty($authHeader) && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
+        return $matches[1];
+    }
+    return '';
 }
 
 
@@ -2614,11 +2663,8 @@ public function my_post_like_list_post()
 
     $this->load->model('User_model');
 
-    // 🔹 Get Authorization Token
-    $headers = getallheaders();
-    $token = isset($headers['Authorization']) 
-                ? str_replace('Bearer ', '', $headers['Authorization']) 
-                : '';
+    // 🔹 Get Authorization Token (works on php -S and Apache)
+    $token = $this->_get_bearer_token();
 
     // 🔹 Validate Token
     $user_id = $this->User_model->validate_token_and_get_user($token);
@@ -2715,9 +2761,8 @@ public function post_reply_on_comment_post()
 
     $this->load->model('User_model');
 
-    // 🔹 Get Token
-    $headers = getallheaders();
-    $token = isset($headers['Authorization']) ? str_replace('Bearer ', '', $headers['Authorization']) : '';
+    // 🔹 Get Token (works on php -S and Apache)
+    $token = $this->_get_bearer_token();
 
     // 🔹 Validate Token
     $user_id = $this->User_model->validate_token_and_get_user($token);
@@ -2838,9 +2883,8 @@ public function add_reel_post()
 
     $this->load->model('User_model');
 
-    // 🔹 Get Authorization Token
-    $headers = getallheaders();
-    $token = isset($headers['Authorization']) ? str_replace('Bearer ', '', $headers['Authorization']) : '';
+    // 🔹 Get Authorization Token (works on php -S and Apache)
+    $token = $this->_get_bearer_token();
 
     // 🔹 Validate Token
     $user_id = $this->User_model->validate_token_and_get_user($token);
@@ -4969,12 +5013,9 @@ public function all_my_tag_post_pagination_post()
     /* ============================
        AUTH USER
     ============================ */
-    $headers = getallheaders();
-    $token = isset($headers['Authorization'])
-        ? str_replace("Bearer ", "", $headers['Authorization'])
-        : '';
+    $token = $this->_get_bearer_token();
 
-    if (!$token) {
+    if ($token === '') {
         echo json_encode([
             "status" => false,
             "message" => "Authorization Token Required"
