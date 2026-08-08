@@ -332,5 +332,81 @@ public function get_report_post()
 }
 
 
+/**
+ * Upsert a generation log row by job_id (called by media service).
+ */
+public function upsert_generation_log(array $data)
+{
+    $jobId = isset($data['job_id']) ? trim((string) $data['job_id']) : '';
+    if ($jobId === '') {
+        return false;
+    }
+
+    $existing = $this->db
+        ->where('job_id', $jobId)
+        ->limit(1)
+        ->get('generation_logs')
+        ->row();
+
+    $payload = [];
+    $allowed = [
+        'job_id', 'user_id', 'media_kind', 'status', 'user_prompt', 'language',
+        'size', 'quality', 'duration_seconds', 'camera_motion', 'starting_image_type',
+        'final_prompt', 'plan_json', 'voiceover_script', 'scene_prompts',
+        'output_url', 's3_key', 'filename', 'error_message', 'progress',
+        'meta_json', 'started_at', 'completed_at',
+    ];
+    foreach ($allowed as $key) {
+        if (array_key_exists($key, $data) && $data[$key] !== null) {
+            $payload[$key] = $data[$key];
+        }
+    }
+
+    if ($existing) {
+        $this->db->where('id', $existing->id)->update('generation_logs', $payload);
+        return (int) $existing->id;
+    }
+
+    if (!isset($payload['started_at'])) {
+        $payload['started_at'] = date('Y-m-d H:i:s');
+    }
+    $this->db->insert('generation_logs', $payload);
+    return (int) $this->db->insert_id();
+}
+
+public function get_generation_logs($limit = 500)
+{
+    $this->db->reset_query();
+    $this->db->select('
+        gl.*,
+        u.first_name,
+        u.username,
+        u.mobile
+    ');
+    $this->db->from('generation_logs gl');
+    $this->db->join('users u', 'u.id = gl.user_id', 'left');
+    $this->db->order_by('gl.id', 'DESC');
+    $this->db->limit((int) $limit);
+    return $this->db->get()->result();
+}
+
+public function get_generation_log($id)
+{
+    $this->db->reset_query();
+    $this->db->select('
+        gl.*,
+        u.first_name,
+        u.username,
+        u.mobile,
+        u.email
+    ');
+    $this->db->from('generation_logs gl');
+    $this->db->join('users u', 'u.id = gl.user_id', 'left');
+    $this->db->where('gl.id', (int) $id);
+    $this->db->limit(1);
+    return $this->db->get()->row();
+}
+
+
 }
 

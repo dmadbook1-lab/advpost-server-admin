@@ -934,8 +934,27 @@ public function privacy_policy()
     $this->load->view('admin_view/about_us'); 
 }
 
+public function generation_logs()
+{
+    $data['logs'] = $this->Common_model->get_generation_logs(500);
+    $this->load->view('admin_view/generation_logs', $data);
+}
 
-
-
+public function generation_log_detail($id = null)
+{
+    $id = (int) $id;
+    if ($id <= 0) {
+        redirect('welcome/generation_logs');
+        return;
+    }
+    $log = $this->Common_model->get_generation_log($id);
+    if (!$log) {
+        $this->session->set_flashdata('error', 'Generation log not found');
+        redirect('welcome/generation_logs');
+        return;
+    }
+    $data['log'] = $log;
+    $this->load->view('admin_view/generation_log_detail', $data);
+}
 
 }

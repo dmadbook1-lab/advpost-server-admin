@@ -1,0 +1,36 @@
+-- Generation prompt / status logs for AI image + video jobs.
+-- Run against the active AdvPost database (local or production).
+
+CREATE TABLE IF NOT EXISTS generation_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  job_id VARCHAR(64) NOT NULL,
+  user_id INT NOT NULL,
+  media_kind ENUM('image','video') NOT NULL,
+  status ENUM('queued','processing','completed','failed') NOT NULL DEFAULT 'queued',
+  user_prompt LONGTEXT NULL COMMENT 'Raw prompt / ad_text from the mobile app',
+  language VARCHAR(64) NULL,
+  size VARCHAR(32) NULL,
+  quality VARCHAR(32) NULL,
+  duration_seconds INT NULL,
+  camera_motion VARCHAR(100) NULL,
+  starting_image_type VARCHAR(32) NULL,
+  final_prompt LONGTEXT NULL COMMENT 'Full prompt sent to GPT Image / Gemini plan',
+  plan_json LONGTEXT NULL,
+  voiceover_script LONGTEXT NULL,
+  scene_prompts LONGTEXT NULL COMMENT 'JSON array of Veo scene prompts',
+  output_url TEXT NULL,
+  s3_key VARCHAR(512) NULL,
+  filename VARCHAR(255) NULL,
+  error_message TEXT NULL,
+  progress VARCHAR(255) NULL,
+  meta_json LONGTEXT NULL,
+  started_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_generation_logs_job_id (job_id),
+  KEY idx_generation_logs_user_created (user_id, created_at),
+  KEY idx_generation_logs_kind_status (media_kind, status),
+  KEY idx_generation_logs_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

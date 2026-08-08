@@ -1534,7 +1534,7 @@ public function get_all_latest_reel_and_post_pagination_post()
        FETCH NORMAL POSTS ONLY
        (BOOST POSTS EXCLUDED HERE)
     ================================*/
-    $this->db->select('posts.*, users.username, users.profile_pic, users.mobile');
+    $this->db->select('posts.*, users.username, users.first_name, users.profile_pic, users.mobile');
     $this->db->from('posts');
     $this->db->join('users', 'users.id = posts.user_id', 'left');
     $this->db->where('posts.status', 1);
@@ -1577,7 +1577,7 @@ public function get_all_latest_reel_and_post_pagination_post()
             }
 
             $boost_post = $this->db
-                ->select('posts.*, users.username, users.profile_pic, users.mobile')
+                ->select('posts.*, users.username, users.first_name, users.profile_pic, users.mobile')
                 ->from('posts')
                 ->join('users', 'users.id = posts.user_id', 'left')
                 ->where('posts.post_id', $boost_post_id)
@@ -1654,6 +1654,7 @@ private function _format_post($post, $login_user_id, $isBoostPost = "0")
         "post_id"       => (int)$post->post_id,
         "user_id"       => (int)$post->user_id,
         "username"      => $post->username ?? "",
+        "first_name"    => $post->first_name ?? "",
         "mobile"        => $post->mobile ?? "",
         "profile_pic"   => adv_profile_pic_url($post->profile_pic ?? ""),
         "text"          => $post->text,
@@ -4186,7 +4187,7 @@ public function get_all_latest_reel_by_pagination_post()
     /* ===============================
        NORMAL REELS
     ================================*/
-    $this->db->select('posts.*, users.username, users.profile_pic, users.mobile');
+    $this->db->select('posts.*, users.username, users.first_name, users.profile_pic, users.mobile');
     $this->db->from('posts');
     $this->db->join('users', 'users.id = posts.user_id', 'left');
     $this->db->where('posts.post_type', 'reel');
@@ -4232,7 +4233,7 @@ public function get_all_latest_reel_by_pagination_post()
             }
 
             $boost_post = $this->db
-                ->select('posts.*, users.username, users.profile_pic, users.mobile')
+                ->select('posts.*, users.username, users.first_name, users.profile_pic, users.mobile')
                 ->from('posts')
                 ->join('users', 'users.id = posts.user_id', 'left')
                 ->where('posts.post_id', $boost_post_id)
@@ -4324,6 +4325,7 @@ private function _format_reel($post, $login_user_id, $isBoostPost = "0")
         "created_at"     => $post->created_at,
         "post_videos"    => $post_videos,
         "username"       => $post->username ?? "",
+        "first_name"     => $post->first_name ?? "",
         "profile_pic"    => !empty($post->profile_pic)
             ? adv_profile_pic_url($post->profile_pic)
             : adv_profile_pic_url(''),
@@ -11916,6 +11918,120 @@ public function get_rate_post()
             "data" => null
         ]);
     }
+}
+
+/**
+ * Ingest / upsert AI generation logs from the media service (image/video).
+ * Auth: X-Media-Log-Key header (shared secret). No user JWT required.
+ *
+ * POST index.php/api/PostController/log_generation
+ */
+public function log_generation_post()
+{
+    header('Content-Type: application/json');
+    date_default_timezone_set('Asia/Kolkata');
+
+    $expected = getenv('MEDIA_LOG_SECRET') ?: 'advpost-media-log-2026';
+    $provided = $this->input->get_request_header('X-Media-Log-Key', true);
+    if (!$provided) {
+        $provided = $this->input->get_request_header('x-media-log-key', true);
+    }
+    if (!$provided || !hash_equals((string) $expected, (string) $provided)) {
+        return $this->response([
+            'status' => false,
+            'message' => 'Unauthorized',
+        ], 401);
+    }
+
+    $raw = $this->input->raw_input_stream;
+    $body = json_decode($raw ?: '[]', true);
+    if (!is_array($body)) {
+        $body = $this->post() ?: [];
+    }
+    if (!is_array($body) || empty($body)) {
+        return $this->response([
+            'status' => false,
+            'message' => 'Invalid JSON body',
+        ], 400);
+    }
+
+    $jobId = trim((string) ($body['job_id'] ?? ''));
+    $userId = (int) ($body['user_id'] ?? 0);
+    $mediaKind = strtolower(trim((string) ($body['media_kind'] ?? '')));
+    if ($jobId === '' || $userId <= 0 || !in_array($mediaKind, ['image', 'video'], true)) {
+        return $this->response([
+            'status' => false,
+            'message' => 'job_id, user_id and media_kind (image|video) are required',
+        ], 400);
+    }
+
+    $status = strtolower(trim((string) ($body['status'] ?? 'queued')));
+    if (!in_array($status, ['queued', 'processing', 'completed', 'failed'], true)) {
+        $status = 'queued';
+    }
+
+    $encodeMaybe = function ($value) {
+        if ($value === null) {
+            return null;
+        }
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+        return (string) $value;
+    };
+
+    $row = [
+        'job_id' => $jobId,
+        'user_id' => $userId,
+        'media_kind' => $mediaKind,
+        'status' => $status,
+        'user_prompt' => isset($body['user_prompt']) ? (string) $body['user_prompt'] : null,
+        'language' => isset($body['language']) ? (string) $body['language'] : null,
+        'size' => isset($body['size']) ? (string) $body['size'] : null,
+        'quality' => isset($body['quality']) ? (string) $body['quality'] : null,
+        'duration_seconds' => isset($body['duration_seconds']) ? (int) $body['duration_seconds'] : null,
+        'camera_motion' => isset($body['camera_motion']) ? (string) $body['camera_motion'] : null,
+        'starting_image_type' => isset($body['starting_image_type']) ? (string) $body['starting_image_type'] : null,
+        'final_prompt' => isset($body['final_prompt']) ? (string) $body['final_prompt'] : null,
+        'plan_json' => $encodeMaybe($body['plan_json'] ?? null),
+        'voiceover_script' => isset($body['voiceover_script']) ? (string) $body['voiceover_script'] : null,
+        'scene_prompts' => $encodeMaybe($body['scene_prompts'] ?? null),
+        'output_url' => isset($body['output_url']) ? (string) $body['output_url'] : null,
+        's3_key' => isset($body['s3_key']) ? (string) $body['s3_key'] : null,
+        'filename' => isset($body['filename']) ? (string) $body['filename'] : null,
+        'error_message' => isset($body['error_message']) ? (string) $body['error_message'] : null,
+        'progress' => isset($body['progress']) ? (string) $body['progress'] : null,
+        'meta_json' => $encodeMaybe($body['meta_json'] ?? null),
+    ];
+
+    if ($status === 'queued' && empty($body['started_at'])) {
+        $row['started_at'] = date('Y-m-d H:i:s');
+    }
+    if (in_array($status, ['completed', 'failed'], true)) {
+        $row['completed_at'] = date('Y-m-d H:i:s');
+    }
+
+    // Drop nulls so upsert does not wipe existing columns with NULL.
+    $row = array_filter($row, static function ($v) {
+        return $v !== null;
+    });
+
+    try {
+        $id = $this->Common_model->upsert_generation_log($row);
+    } catch (Throwable $e) {
+        return $this->response([
+            'status' => false,
+            'message' => 'Failed to save generation log',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+
+    return $this->response([
+        'status' => true,
+        'message' => 'Generation log saved',
+        'id' => $id,
+        'job_id' => $jobId,
+    ], 200);
 }
 
 }

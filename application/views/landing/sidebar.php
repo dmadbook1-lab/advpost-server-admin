@@ -121,6 +121,13 @@ $reportPostActive = (strpos($current, 'report_post') !== false) ? 'active' : '';
             </a>
           </li>
 
+          <li class="nav-item <?= $isUser ? 'menu-disabled' : '' ?>">
+            <a href="<?= $isUser ? 'javascript:void(0)' : base_url('welcome/generation_logs') ?>" class="nav-link <?= $isActive('generation_log') ?>">
+              <i class="nav-icon fas fa-robot"></i>
+              <p>Generation Logs</p>
+            </a>
+          </li>
+
           <li class="nav-item nav-logout">
             <a href="<?= base_url('welcome/logout') ?>" class="nav-link">
               <i class="nav-icon fas fa-sign-out-alt"></i>
