@@ -23,7 +23,16 @@ public function __construct()
 
     date_default_timezone_set('Asia/Kolkata');
 
-    $allowedMethods = ['login', 'index'];
+    $allowedMethods = [
+        'login',
+        'index',
+        'privacy_policy',
+        'terms_condition',
+        'child_safety',
+        'contact_us',
+        'account_deletion',
+        'data_deletion',
+    ];
 
     if (!in_array($this->router->fetch_method(), $allowedMethods)) {
 
@@ -915,6 +924,16 @@ public function restore_post($post_id)
 public function privacy_policy()
 {
     $this->load->view('admin_view/privacy_policy');
+}
+
+public function account_deletion()
+{
+    $this->load->view('admin_view/account_deletion');
+}
+
+public function data_deletion()
+{
+    $this->load->view('admin_view/account_deletion');
 }
 
 

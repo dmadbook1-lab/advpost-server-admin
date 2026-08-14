@@ -53,5 +53,11 @@ $route['default_controller'] = 'welcome';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
 
+$route['welcome/privacy-policy'] = 'welcome/privacy_policy';
+$route['welcome/account-deletion'] = 'welcome/account_deletion';
+$route['welcome/data-deletion'] = 'welcome/data_deletion';
+$route['welcome/delete-account'] = 'welcome/account_deletion';
+$route['welcome/delete_account'] = 'welcome/account_deletion';
+
 
 //$route[LOGINPROFILE] = 'admin/login';
