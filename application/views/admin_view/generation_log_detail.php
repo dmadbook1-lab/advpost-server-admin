@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Generation Log #<?= (int) $log->id ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?php echo base_url('assetsNew/dist/css/admin-theme.css') ?>?v=4">
+<link rel="stylesheet" href="<?php echo base_url('assetsNew/dist/css/admin-theme.css') ?>?v=7">
 <style>
   pre.log-block {
     background: #0f172a;

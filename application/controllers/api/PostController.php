@@ -1533,6 +1533,8 @@ public function get_all_latest_reel_and_post_pagination_post()
     /* ===============================
        FETCH NORMAL POSTS ONLY
        (BOOST POSTS EXCLUDED HERE)
+       This is the general Home feed — it must return every post_type
+       (images/photos/reels mixed), not reels only.
     ================================*/
     $this->db->select('posts.*, users.username, users.first_name, users.profile_pic, users.mobile');
     $this->db->from('posts');

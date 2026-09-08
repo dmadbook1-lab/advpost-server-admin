@@ -27,7 +27,7 @@ $reportPostActive = (strpos($current, 'report_post') !== false) ? 'active' : '';
   <link rel="stylesheet" href="<?php echo base_url('assetsNew/dist/css/adminlte.min.css') ?>">
   <link rel="stylesheet" href="<?php echo base_url('assetsNew/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') ?>">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
-  <link rel="stylesheet" href="<?php echo base_url('assetsNew/dist/css/admin-theme.css') ?>?v=4">
+  <link rel="stylesheet" href="<?php echo base_url('assetsNew/dist/css/admin-theme.css') ?>?v=7">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -58,7 +58,7 @@ $reportPostActive = (strpos($current, 'report_post') !== false) ? 'active' : '';
 
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="<?= base_url('welcome/dashboard') ?>" class="brand-link text-center">
-      <img class="brand-logo" src="<?= base_url('assetsNew/logo/advpost_logo.jpeg') ?>" alt="ADvPOST">
+      <img class="brand-logo" src="<?= base_url('assetsNew/logo/advpost_logo_transparent.png') ?>?v=3" alt="ADvPOST">
     </a>
 
     <div class="sidebar">
