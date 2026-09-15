@@ -23,9 +23,22 @@ ini_set("error_reporting", E_ALL & ~E_DEPRECATED);
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = (defined('ENVIRONMENT') && ENVIRONMENT !== 'production' && function_exists('adv_env') && adv_env('BASE_URL_LOCAL', '') !== '')
-	? adv_env('BASE_URL_LOCAL', '')
+// In dev, prefer the Host the client actually connected with (e.g.
+// 10.0.2.2:8080 from an Android emulator, 127.0.0.1:8080 from an iOS
+// simulator, a LAN IP from a physical device, localhost:8080 from a
+// browser) over the static BASE_URL_LOCAL in .env — that keeps every
+// absolute URL this app returns (profile pics, uploads, ...) resolvable
+// by whichever client made the request, instead of hardcoding one host
+// and breaking the others. Falls back to BASE_URL_LOCAL when the Host
+// header isn't available (CLI scripts, cron).
+$adv_local_base_url = !empty($_SERVER['HTTP_HOST'])
+	? (((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'].'/')
+	: (function_exists('adv_env') ? adv_env('BASE_URL_LOCAL', '') : '');
+
+$config['base_url'] = (defined('ENVIRONMENT') && ENVIRONMENT !== 'production' && $adv_local_base_url !== '')
+	? $adv_local_base_url
 	: (function_exists('adv_env') ? adv_env('BASE_URL', 'https://admin.advpost.in/') : 'https://admin.advpost.in/');
+unset($adv_local_base_url);
 
 /*
 |--------------------------------------------------------------------------

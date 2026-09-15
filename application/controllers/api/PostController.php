@@ -3282,11 +3282,24 @@ public function add_story_post()
     $this->load->library('upload');
 $this->db->query("SET NAMES utf8mb4");
     // 🔹 Get Token from Header
-    $headers = apache_request_headers();
-    $authHeader = $headers['Authorization'] ?? '';
+    $authHeader = $this->input->get_request_header('Authorization');
+    if (empty($authHeader)) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+            ?? '';
+    }
+    if (empty($authHeader) && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        foreach ($headers as $key => $value) {
+            if (strcasecmp($key, 'Authorization') === 0) {
+                $authHeader = $value;
+                break;
+            }
+        }
+    }
 
-    if (strpos($authHeader, 'Bearer ') === 0) {
-        $token = substr($authHeader, 7);
+    if (!empty($authHeader) && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
+        $token = $matches[1];
     } else {
         echo json_encode([
             'response_code' => '0',
@@ -3387,11 +3400,28 @@ public function get_story_by_user_post()
     $this->load->model('User_model');
 
     /* ===================== TOKEN ===================== */
-    $headers = apache_request_headers();
-    $authHeader = $headers['Authorization'] ?? '';
+    // Prefer CI / $_SERVER so this works on Apache AND PHP's built-in server
+    // (apache_request_headers() often omits Authorization under `php -S`,
+    // and HTTP clients that send lowercase header names can miss a
+    // case-sensitive array lookup even when the header is present).
+    $authHeader = $this->input->get_request_header('Authorization');
+    if (empty($authHeader)) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+            ?? '';
+    }
+    if (empty($authHeader) && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        foreach ($headers as $key => $value) {
+            if (strcasecmp($key, 'Authorization') === 0) {
+                $authHeader = $value;
+                break;
+            }
+        }
+    }
 
-    if (strpos($authHeader, 'Bearer ') === 0) {
-        $token = substr($authHeader, 7);
+    if (!empty($authHeader) && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
+        $token = $matches[1];
     } else {
         echo json_encode([
             'response_code' => '0',
