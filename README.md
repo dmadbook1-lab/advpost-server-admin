@@ -50,16 +50,17 @@ cd public_html
 php -S localhost:8080 router.php
 ```
 
-Optional: copy `.env.example` → `.env` and set production (`DB_*`) and local (`DB_LOCAL_*`) credentials.
-Optional: copy `private/environment.php.example` → `private/environment.php` and set `development` or `production` (or use `CI_ENV` in `.env`).
+Copy `.env.example` → `.env` — the **only** env file. It holds both the local (`DB_LOCAL_*`, `BASE_URL_LOCAL`) and production (`DB_*`, `BASE_URL`) settings.
+The environment is picked automatically: `localhost` / `127.0.0.1` / `*.local` → development, any other host → production.
+`CI_ENV` in `.env` only applies to CLI scripts in `bin/`; a `CI_ENV` set in the shell or vhost overrides everything.
 
 ## Deploy checklist
 
 1. Point the vhost / hosting **document root** at `public_html/` (not the project root).
 2. Ensure `storage/` is writable by PHP (`cache`, `logs`, `sessions`).
 3. Place Firebase key at `private/credentials/advpost-firebase.json`.
-4. Copy `.env.example` → `.env` and set DB, AWS, Razorpay, and `BASE_URL` (never commit `.env`).
-5. Set `CI_ENV=production` in `.env` (or use `private/environment.php`).
+4. Copy `.env.example` → `.env` and set DB, AWS, Razorpay, `ENCRYPTION_KEY` and `BASE_URL` (never commit it).
+5. In that `.env`, set `CI_ENV=production` so CLI scripts / cron use the production DB (web requests on the real domain are production automatically).
 6. Keep Composer deps at project root: `composer install --no-dev` from the project root.
 
 ## Media & S3

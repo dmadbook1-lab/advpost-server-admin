@@ -1,13 +1,35 @@
 <?php
 /**
- * Load key=value pairs from a .env file into the process environment.
- * Existing getenv / $_ENV values are never overwritten.
+ * Load the single .env file from the project root.
+ * It holds both DB_LOCAL_* (development) and DB_* (production) settings;
+ * advpost_resolve_environment() decides which set is used.
+ * Real server vars always win over .env values.
  *
  * @param string $root Project root (directory that contains .env)
  * @param string $filename Env filename (default .env)
  * @return void
  */
 function advpost_load_env($root, $filename = '.env')
+{
+	// Remember a CI_ENV set outside .env (shell, cron, Apache SetEnv) before .env can fill it in.
+	if ( ! isset($GLOBALS['advpost_real_ci_env']))
+	{
+		$real = getenv('CI_ENV');
+		$GLOBALS['advpost_real_ci_env'] = ($real !== false) ? $real : (isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : '');
+	}
+
+	advpost_load_env_file($root, $filename);
+}
+
+/**
+ * Load key=value pairs from one env file into the process environment.
+ * Existing getenv / $_ENV values are never overwritten.
+ *
+ * @param string $root
+ * @param string $filename
+ * @return void
+ */
+function advpost_load_env_file($root, $filename)
 {
 	$path = rtrim($root, "/\\") . DIRECTORY_SEPARATOR . $filename;
 	if ( ! is_file($path) || ! is_readable($path))
@@ -130,8 +152,10 @@ if ( ! function_exists('advpost_is_local_host'))
 		{
 			return PHP_SAPI === 'cli';
 		}
+		$host = preg_replace('/:\d+$/', '', $host); // drop port (localhost:8080)
 		return $host === 'localhost'
-			|| strpos($host, '127.0.0.1') === 0
+			|| $host === '127.0.0.1'
+			|| $host === '[::1]'
 			|| substr($host, -6) === '.local';
 	}
 }
@@ -139,20 +163,24 @@ if ( ! function_exists('advpost_is_local_host'))
 if ( ! function_exists('advpost_resolve_environment'))
 {
 	/**
-	 * Resolve CI environment: local HTTP host → development; else .env / server vars.
+	 * Resolve CI environment:
+	 *   1. CI_ENV set outside .env (shell / cron / vhost) – explicit override
+	 *   2. Web request: localhost / 127.0.0.1 / *.local → development, any other host → production
+	 *   3. CLI: CI_ENV from .env, then private/environment.php, else development
 	 *
 	 * @return string
 	 */
 	function advpost_resolve_environment()
 	{
-		if (isset($_SERVER['CI_ENV']) && $_SERVER['CI_ENV'] !== '')
+		$real_ci_env = isset($GLOBALS['advpost_real_ci_env']) ? $GLOBALS['advpost_real_ci_env'] : '';
+		if ($real_ci_env !== '')
 		{
-			return $_SERVER['CI_ENV'];
+			return $real_ci_env;
 		}
 
-		if (PHP_SAPI !== 'cli' && advpost_is_local_host())
+		if (PHP_SAPI !== 'cli')
 		{
-			return 'development';
+			return advpost_is_local_host() ? 'development' : 'production';
 		}
 
 		$ci_env = adv_env('CI_ENV', '');
@@ -164,7 +192,7 @@ if ( ! function_exists('advpost_resolve_environment'))
 		$environment_file = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'environment.php';
 		if (is_file($environment_file))
 		{
-			include $environment_file;
+			include_once $environment_file;
 			if (defined('ENVIRONMENT'))
 			{
 				return ENVIRONMENT;
