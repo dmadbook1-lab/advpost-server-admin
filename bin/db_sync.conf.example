@@ -1,0 +1,21 @@
+# Copy to bin/db_sync.conf and fill in. Do NOT commit db_sync.conf.
+# Local DB credentials are read from .env (DB_LOCAL_*).
+
+# SSH access to the VPS
+SYNC_SSH_TARGET=root@YOUR_VPS_IP
+# SYNC_SSH_OPTS=-i ~/.ssh/id_ed25519 -p 22
+
+# Folder on the VPS that contains docker-compose.yml
+SYNC_REMOTE_COMPOSE_DIR=/path/to/project
+
+# Docker (use "docker-compose" if your VPS has the old binary)
+SYNC_COMPOSE_CMD=docker compose
+SYNC_DB_SERVICE=db
+
+# Production DB credentials (from the VPS .env)
+SYNC_DB_USER=advpost
+SYNC_DB_PASSWORD=advpost
+SYNC_DB_NAME=adbookuser_adbookuser
+
+# Tables never compared (comma separated)
+SYNC_IGNORE_TABLES=schema_migrations

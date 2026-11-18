@@ -41,3 +41,5 @@ composer.lock
 # Tests / junk
 tests/mocks/database/ci_test.sqlite
 user_guide_src/build/
+bin/db_sync.conf
+storage/db_backups/
