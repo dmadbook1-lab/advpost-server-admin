@@ -625,8 +625,8 @@ public function create_razorpay_order()
 
     require VENDORPATH . 'razorpay/razorpay/Razorpay.php';
     $api = new \Razorpay\Api\Api(
-        'rzp_test_SHtjbZaBfQbQDw',
-        '5AVQU020MOsAlUra5fmna7mn'
+        $this->config->item('razorpay_key_id'),
+        $this->config->item('razorpay_key_secret')
     );
 
     $order = $api->order->create([
@@ -637,7 +637,8 @@ public function create_razorpay_order()
 
     echo json_encode([
         'order_id' => $order['id'],
-        'amount'   => $order['amount'] // paise
+        'amount'   => $order['amount'], // paise
+        'key_id'   => $this->config->item('razorpay_key_id')
     ]);
 }
    
@@ -748,8 +749,8 @@ public function update_post_boost()
         }
 
         $api = new \Razorpay\Api\Api(
-            'rzp_test_xxxxxxxx',
-            'xxxxxxxxxxxxxxx'
+            $this->config->item('razorpay_key_id'),
+            $this->config->item('razorpay_key_secret')
         );
 
         $order = $api->order->create([
@@ -845,13 +846,20 @@ public function verify_payment()
 }
 
 
+ private function _hashed_password_or_null($plain)
+    {
+        $this->load->helper('adv_password');
+        $plain = (string) $plain;
+        return $plain === '' ? null : adv_password_hash($plain);
+    }
+
  public function store()
     {
         $data = [
             'name'         => $this->input->post('name'),
             'email'        => $this->input->post('email'),
             'username'     => $this->input->post('username'),
-            'password'     => $this->input->post('password'),
+            'password'     => $this->_hashed_password_or_null($this->input->post('password')),
             'mobile'       => $this->input->post('mobile'),
             'country_code' => $this->input->post('country_code'),
             'gender'       => $this->input->post('gender'),
@@ -974,6 +982,29 @@ public function generation_log_detail($id = null)
     }
     $data['log'] = $log;
     $this->load->view('admin_view/generation_log_detail', $data);
+}
+
+
+public function service_requests()
+{
+    $status = (string) $this->input->get('status', true);
+    if (!in_array($status, ['new', 'in_progress', 'done', 'rejected'], true)) { $status = ''; }
+    $data['requests'] = $this->Common_model->get_service_requests($status, 500);
+    $data['counts']   = $this->Common_model->count_service_requests_by_status();
+    $data['status']   = $status;
+    $this->load->view('admin_view/service_requests', $data);
+}
+
+public function update_service_request()
+{
+    $id     = (int) $this->input->post('id');
+    $status = (string) $this->input->post('status', true);
+    $note   = trim((string) $this->input->post('admin_note', true));
+    if ($id > 0 && in_array($status, ['new', 'in_progress', 'done', 'rejected'], true)) {
+        $this->Common_model->update_service_request($id, $status, $note);
+        $this->session->set_flashdata('msg', 'Request #' . $id . ' updated');
+    }
+    redirect('welcome/service_requests');
 }
 
 }

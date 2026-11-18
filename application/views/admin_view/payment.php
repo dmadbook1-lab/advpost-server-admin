@@ -187,7 +187,7 @@ document.getElementById("payBtn").onclick = async function () {
     }
 
     const options = {
-        key: "rzp_test_SHtjbZaBfQbQDw",
+        key: data.key_id,
         amount: data.amount,
         currency: "INR",
         name: "Vihaanshika",

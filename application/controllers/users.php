@@ -31,8 +31,14 @@ class Users extends CI_Controller {
             'name'     => $this->input->post('name'),
             'email'    => $this->input->post('email'),
             'number'   => $this->input->post('number'),
-            'password' => $this->input->post('password')
         ];
+
+        // Only change the password when a new one was typed, and store it hashed.
+        $newPassword = (string) $this->input->post('password');
+        if ($newPassword !== '') {
+            $this->load->helper('adv_password');
+            $formData['password'] = adv_password_hash($newPassword);
+        }
 
         $this->User_model->update_user($id, $formData);
         $this->session->set_flashdata('msg', 'User updated successfully!');

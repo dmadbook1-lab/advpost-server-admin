@@ -9,7 +9,45 @@ class Common_model extends CI_Model
 
     public function checkLogin($table, $email , $password)
     {
-        return $result = $this->db->get_Where($table, ['email' => $email ,'password' => $password])->row();
+        $this->load->helper('adv_password');
+
+        $email = trim((string) $email);
+        if ($email === '' || (string) $password === '') {
+            return null;
+        }
+
+        // Fetch by email only, then verify the password in PHP so that both
+        // hashed and legacy plain-text rows are supported.
+        $rows = $this->db->where('email', $email)
+            ->where('password IS NOT NULL', null, false)
+            ->where('password !=', '')
+            ->get($table)->result();
+
+        foreach ($rows as $row) {
+            if (adv_password_check($password, $row->password)) {
+                // Upgrade legacy plain text (or an outdated hash) on successful login.
+                if (adv_password_needs_upgrade($row->password)) {
+                    $this->db->where('id', $row->id)
+                        ->update($table, ['password' => adv_password_hash($password)]);
+                }
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /** Verify a password for an already-loaded user row and upgrade legacy storage. */
+    public function verifyUserPassword($user, $password)
+    {
+        $this->load->helper('adv_password');
+        if (!$user || !adv_password_check($password, $user->password ?? '')) {
+            return false;
+        }
+        if (adv_password_needs_upgrade($user->password)) {
+            $this->db->where('id', $user->id)
+                ->update('users', ['password' => adv_password_hash($password)]);
+        }
+        return true;
     }
 
 public function daily_count($table)
@@ -408,5 +446,65 @@ public function get_generation_log($id)
 }
 
 
+
+    // ===============================
+    // SERVICE REQUESTS (app -> admin)
+    // ===============================
+    public function ensure_service_requests_table()
+    {
+        $this->db->query("CREATE TABLE IF NOT EXISTS service_requests (
+          id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          service_key VARCHAR(64) NOT NULL,
+          service_name VARCHAR(150) NOT NULL,
+          name VARCHAR(150) NOT NULL,
+          phone VARCHAR(32) NOT NULL,
+          business_name VARCHAR(190) NULL,
+          message TEXT NULL,
+          status ENUM('new','in_progress','done','rejected') NOT NULL DEFAULT 'new',
+          admin_note TEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id), KEY idx_user (user_id), KEY idx_status (status), KEY idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+
+    public function add_service_request(array $data)
+    {
+        $this->ensure_service_requests_table();
+        $this->db->insert('service_requests', $data);
+        return $this->db->insert_id();
+    }
+
+    public function get_service_requests($status = '', $limit = 500)
+    {
+        $this->ensure_service_requests_table();
+        if ($status !== '') {
+            $this->db->where('status', $status);
+        }
+        return $this->db->order_by('id', 'DESC')->limit((int) $limit)->get('service_requests')->result();
+    }
+
+    public function count_service_requests_by_status()
+    {
+        $this->ensure_service_requests_table();
+        $rows = $this->db->select('status, COUNT(*) AS c', false)->group_by('status')->get('service_requests')->result();
+        $out = ['new' => 0, 'in_progress' => 0, 'done' => 0, 'rejected' => 0];
+        foreach ($rows as $r) { $out[$r->status] = (int) $r->c; }
+        return $out;
+    }
+
+    public function get_user_service_requests($user_id, $limit = 50)
+    {
+        $this->ensure_service_requests_table();
+        return $this->db->where('user_id', (int) $user_id)->order_by('id', 'DESC')
+            ->limit((int) $limit)->get('service_requests')->result();
+    }
+
+    public function update_service_request($id, $status, $note)
+    {
+        $this->ensure_service_requests_table();
+        $this->db->where('id', (int) $id)->update('service_requests', ['status' => $status, 'admin_note' => $note]);
+    }
 }
 

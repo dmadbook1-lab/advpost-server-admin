@@ -162,6 +162,18 @@ public function store_otp_post() {
 
     $this->db->replace('otp_verification', $data);
 
+    // Fast2SMS credentials come from the environment (.env FAST2SMS_API_KEY).
+    $fast2smsKey = function_exists('adv_env') ? trim((string) adv_env('FAST2SMS_API_KEY', '')) : '';
+    if ($fast2smsKey === '') {
+        log_message('error', 'FAST2SMS_API_KEY is not configured; OTP SMS not sent');
+        echo json_encode([
+            "response_code" => "0",
+            "status"        => "failed",
+            "message"       => "SMS service is not configured"
+        ]);
+        return;
+    }
+
     // Fast2SMS Payload
     $fields = [
         "sender_id"        => "ADvPST",
@@ -179,7 +191,7 @@ public function store_otp_post() {
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => json_encode($fields),
         CURLOPT_HTTPHEADER     => [
-            "authorization: qV1C3jK0PUmof2uEQh74rc8axJiHOSsZDXyBGRkbdNAtvnWewILrK8RJ24iok1juf6lEsqTZMtnUcO5G",
+            "authorization: " . $fast2smsKey,
             "content-type: application/json"
         ],
     ]);
@@ -475,9 +487,13 @@ public function verify_otp_post()
         return;
     }
 
-    $user = $this->Reel_model->get_user_by_email($email);
+    // Same generic failure for unknown email and wrong password (no user enumeration).
+    $user = $this->db->where('email', $email)
+        ->where('password IS NOT NULL', null, false)
+        ->where('password !=', '')
+        ->get('users')->row();
 
-    if (!$user || $password !== $user->password) {
+    if (!$user || !$this->Common_model->verifyUserPassword($user, $password)) {
         echo json_encode([
             'success' => 'failure',
             'message' => 'Users Not Found'
@@ -722,6 +738,314 @@ $this->output
     }
 }
 
+
+/* ===============================================
+   SERVICE REQUESTS (help form -> admin inbox)
+=============================================== */
+private function _service_request_user()
+{
+    header("Content-Type: application/json");
+    date_default_timezone_set('Asia/Kolkata');
+    $authHeader = $this->input->get_request_header('Authorization', TRUE);
+    if (!$authHeader || stripos($authHeader, 'Bearer ') !== 0) {
+        echo json_encode(["status" => "failed", "message" => "Unauthorized: Token missing"]);
+        return null;
+    }
+    $token = trim(substr($authHeader, 7));
+    $user = $this->db->where("token", $token)
+        ->where("token_expiry >=", date("Y-m-d H:i:s"))
+        ->get("users")->row();
+    if (!$user) {
+        echo json_encode(["status" => "failed", "message" => "Unauthorized: Invalid or expired token"]);
+        return null;
+    }
+    return $user;
+}
+
+public function service_request_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+
+    $in = json_decode($this->input->raw_input_stream, true);
+    if (!is_array($in)) { $in = $this->input->post(); }
+
+    $serviceKey  = substr(trim((string) ($in['service_key'] ?? '')), 0, 64);
+    $serviceName = substr(trim((string) ($in['service_name'] ?? '')), 0, 150);
+    $name        = substr(trim((string) ($in['name'] ?? '')), 0, 150);
+    $phone       = substr(preg_replace('/[^0-9+]/', '', (string) ($in['phone'] ?? '')), 0, 32);
+    $business    = substr(trim((string) ($in['business_name'] ?? '')), 0, 190);
+    $message     = substr(trim((string) ($in['message'] ?? '')), 0, 2000);
+
+    if ($serviceKey === '' || $serviceName === '' || $name === '' || strlen($phone) < 7) {
+        echo json_encode(["status" => "failed", "message" => "Name, phone and service are required"]);
+        return;
+    }
+
+    $id = $this->Common_model->add_service_request([
+        'user_id'       => (int) $user->id,
+        'service_key'   => $serviceKey,
+        'service_name'  => $serviceName,
+        'name'          => $name,
+        'phone'         => $phone,
+        'business_name' => $business,
+        'message'       => $message,
+        'status'        => 'new',
+    ]);
+
+    echo json_encode(["status" => "success", "message" => "Request sent to admin", "request_id" => (int) $id]);
+}
+
+public function my_service_requests_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+
+    $rows = $this->Common_model->get_user_service_requests($user->id);
+    $counts = ['total' => count($rows), 'new' => 0, 'in_progress' => 0, 'done' => 0];
+    foreach ($rows as $r) {
+        if (isset($counts[$r->status])) { $counts[$r->status]++; }
+    }
+    echo json_encode(["status" => "success", "counts" => $counts, "data" => $rows]);
+}
+
+public function get_referral_points_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+
+    echo json_encode([
+        "status" => "success",
+        "data" => [
+            "refer_code"              => $user->refer_code ?? '',
+            "total_referral_points"   => (int) ($user->total_referral_points ?? 0),
+            "used_referral_points"    => (int) ($user->used_referral_points ?? 0),
+            "balance_referral_points" => (int) ($user->balance_referral_points ?? 0),
+        ],
+    ]);
+}
+
+/* =====================================================================
+ * CREDITS  (buy, spend, history).  See Credit_model for the ledger rules.
+ * ===================================================================== */
+
+private function _credit_input()
+{
+    $in = json_decode($this->input->raw_input_stream, true);
+    return is_array($in) ? $in : $this->input->post();
+}
+
+private function _credit_gateway_ready()
+{
+    $this->load->config('razorpay');
+    $id  = (string) $this->config->item('razorpay_key_id');
+    $sec = (string) $this->config->item('razorpay_key_secret');
+    return (strpos($id, 'rzp_') === 0 && stripos($id, 'xxxx') === false && $sec !== '' && stripos($sec, 'xxxx') === false);
+}
+
+private function _credit_dev_simulation()
+{
+    // Only on a development machine and only while no real gateway keys exist.
+    return defined('ENVIRONMENT') && ENVIRONMENT === 'development' && !$this->_credit_gateway_ready();
+}
+
+private function _credit_json(array $payload)
+{
+    header("Content-Type: application/json");
+    echo json_encode($payload);
+}
+
+public function credit_packages_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+
+    $this->load->config('razorpay');
+    $packages = [];
+    foreach ($this->Credit_model->get_packages(true) as $p) {
+        $packages[] = [
+            'id'            => (int) $p->id,
+            'name'          => $p->name,
+            'credits'       => (int) $p->credits,
+            'bonus_credits' => (int) $p->bonus_credits,
+            'total_credits' => (int) $p->credits + (int) $p->bonus_credits,
+            'price_inr'     => (float) $p->price_inr,
+            'badge'         => $p->badge,
+        ];
+    }
+    $this->_credit_json([
+        "status"          => "success",
+        "balance"         => $this->Credit_model->get_balance($user->id),
+        "costs"           => $this->Credit_model->get_costs(),
+        "video_enabled"   => $this->Credit_model->get_flag('video_enabled'),
+        "packages"        => $packages,
+        "gateway_ready"   => $this->_credit_gateway_ready(),
+        "dev_simulation"  => $this->_credit_dev_simulation(),
+        "key_id"          => $this->_credit_gateway_ready() ? (string) $this->config->item('razorpay_key_id') : '',
+    ]);
+}
+
+public function credit_create_order_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+    $in  = $this->_credit_input();
+    $pkg = $this->Credit_model->get_package((int) ($in['package_id'] ?? 0));
+    if (!$pkg || !(int) $pkg->is_active) {
+        return $this->_credit_json(["status" => "failed", "message" => "Package not available"]);
+    }
+    if (!$this->_credit_gateway_ready()) {
+        return $this->_credit_json(["status" => "failed", "message" => "Online payment is not configured yet"]);
+    }
+
+    try {
+        $api = new \Razorpay\Api\Api(
+            $this->config->item('razorpay_key_id'),
+            $this->config->item('razorpay_key_secret')
+        );
+        $order = $api->order->create([
+            'amount'          => (int) round($pkg->price_inr * 100),
+            'currency'        => 'INR',
+            'receipt'         => 'cr_' . $user->id . '_' . time(),
+            'payment_capture' => 1,
+            'notes'           => ['user_id' => (string) $user->id, 'package_id' => (string) $pkg->id],
+        ]);
+    } catch (\Throwable $e) {
+        log_message('error', 'Razorpay order failed: ' . $e->getMessage());
+        return $this->_credit_json(["status" => "failed", "message" => "Could not start the payment. Please try again."]);
+    }
+
+    $this->Credit_model->create_order($user->id, $pkg, $order['id']);
+    $this->_credit_json([
+        "status"       => "success",
+        "order_id"     => $order['id'],
+        "amount_paise" => (int) round($pkg->price_inr * 100),
+        "currency"     => "INR",
+        "key_id"       => (string) $this->config->item('razorpay_key_id'),
+        "package"      => ["id" => (int) $pkg->id, "name" => $pkg->name,
+                           "total_credits" => (int) $pkg->credits + (int) $pkg->bonus_credits],
+        "prefill"      => ["name" => (string) ($user->first_name ?? ''), "contact" => (string) ($user->mobile ?? ''),
+                           "email" => (string) ($user->email ?? '')],
+    ]);
+}
+
+public function credit_verify_payment_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+    $in = $this->_credit_input();
+
+    $orderId   = (string) ($in['razorpay_order_id'] ?? '');
+    $paymentId = (string) ($in['razorpay_payment_id'] ?? '');
+    $signature = (string) ($in['razorpay_signature'] ?? '');
+    if ($orderId === '' || $paymentId === '' || $signature === '') {
+        return $this->_credit_json(["status" => "failed", "message" => "Missing payment details"]);
+    }
+
+    $order = $this->Credit_model->get_order_by_rzp($orderId);
+    if (!$order || (int) $order->user_id !== (int) $user->id) {
+        return $this->_credit_json(["status" => "failed", "message" => "Order not found"]);
+    }
+
+    // Signature = HMAC_SHA256(order_id|payment_id, key_secret)
+    $this->load->config('razorpay');
+    $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, (string) $this->config->item('razorpay_key_secret'));
+    if (!hash_equals($expected, $signature)) {
+        return $this->_credit_json(["status" => "failed", "message" => "Payment could not be verified"]);
+    }
+
+    $balance = $this->Credit_model->complete_order($order, $paymentId);
+    if ($balance === false) {
+        return $this->_credit_json(["status" => "failed", "message" => "Could not add credits. Contact support with payment id " . $paymentId]);
+    }
+    $this->_credit_json(["status" => "success", "balance" => $balance, "added" => (int) $order->credits]);
+}
+
+/** Local development only: buy a package without a payment gateway. */
+public function credit_dev_purchase_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    if (!$this->_credit_dev_simulation()) {
+        return $this->_credit_json(["status" => "failed", "message" => "Not available"]);
+    }
+    $this->load->model('Credit_model');
+    $in  = $this->_credit_input();
+    $pkg = $this->Credit_model->get_package((int) ($in['package_id'] ?? 0));
+    if (!$pkg || !(int) $pkg->is_active) {
+        return $this->_credit_json(["status" => "failed", "message" => "Package not available"]);
+    }
+    $fakeOrder = 'dev_' . $user->id . '_' . bin2hex(random_bytes(6));
+    $this->Credit_model->create_order($user->id, $pkg, $fakeOrder);
+    $balance = $this->Credit_model->complete_order($this->Credit_model->get_order_by_rzp($fakeOrder), 'dev_simulated');
+    $this->_credit_json(["status" => "success", "balance" => $balance,
+                         "added" => (int) $pkg->credits + (int) $pkg->bonus_credits]);
+}
+
+public function credit_spend_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+    $in     = $this->_credit_input();
+    $action = (string) ($in['action'] ?? '');
+    $ref    = (string) ($in['ref'] ?? '');
+
+    if ($action === 'ai_video' && !$this->Credit_model->get_flag('video_enabled')) {
+        return $this->_credit_json(["status" => "unavailable", "message" => "AI Video is coming soon. We will get back to you soon."]);
+    }
+
+    $cost = $this->Credit_model->cost_of($action);
+    if ($cost === null || $ref === '' || strlen($ref) > 80) {
+        return $this->_credit_json(["status" => "failed", "message" => "Invalid request"]);
+    }
+    if ($cost === 0) {
+        return $this->_credit_json(["status" => "success", "charged" => 0, "balance" => $this->Credit_model->get_balance($user->id)]);
+    }
+
+    $balance = $this->Credit_model->remove($user->id, $cost, 'spend', $ref, $action);
+    if ($balance === false) {
+        return $this->_credit_json([
+            "status"   => "insufficient",
+            "message"  => "Not enough credits",
+            "required" => $cost,
+            "balance"  => $this->Credit_model->get_balance($user->id),
+        ]);
+    }
+    $this->_credit_json(["status" => "success", "charged" => $cost, "balance" => $balance]);
+}
+
+public function credit_refund_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+    $in  = $this->_credit_input();
+    $ref = (string) ($in['ref'] ?? '');
+    $balance = $ref !== '' ? $this->Credit_model->refund_spend($user->id, $ref) : false;
+    if ($balance === false) {
+        return $this->_credit_json(["status" => "failed", "message" => "Nothing to refund"]);
+    }
+    $this->_credit_json(["status" => "success", "balance" => $balance]);
+}
+
+public function credit_history_post()
+{
+    $user = $this->_service_request_user();
+    if (!$user) { return; }
+    $this->load->model('Credit_model');
+    $rows = [];
+    foreach ($this->Credit_model->get_history($user->id, 60) as $t) {
+        $rows[] = [
+            'id' => (int) $t->id, 'type' => $t->type, 'credits' => (int) $t->credits,
+            'balance_after' => (int) $t->balance_after, 'note' => $t->note, 'created_at' => $t->created_at,
+        ];
+    }
+    $this->_credit_json(["status" => "success", "balance" => $this->Credit_model->get_balance($user->id), "data" => $rows]);
+}
 
 public function user_profile_post()
 {

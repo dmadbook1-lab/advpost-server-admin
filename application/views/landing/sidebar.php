@@ -128,6 +128,22 @@ $reportPostActive = (strpos($current, 'report_post') !== false) ? 'active' : '';
             </a>
           </li>
 
+          <li class="nav-item <?= $isUser ? 'menu-disabled' : '' ?>">
+            <a href="<?= $isUser ? 'javascript:void(0)' : base_url('welcome/service_requests') ?>" class="nav-link <?= $isActive('service_request') ?>">
+              <i class="nav-icon fas fa-headset"></i>
+              <p>Service Requests</p>
+            </a>
+          </li>
+
+          <?php if ($role === 'Admin'): ?>
+          <li class="nav-item">
+            <a href="<?= base_url('creditadmin') ?>" class="nav-link <?= $isActive('creditadmin') ?>">
+              <i class="nav-icon fas fa-coins"></i>
+              <p>Credits</p>
+            </a>
+          </li>
+          <?php endif; ?>
+
           <li class="nav-item nav-logout">
             <a href="<?= base_url('welcome/logout') ?>" class="nav-link">
               <i class="nav-icon fas fa-sign-out-alt"></i>
