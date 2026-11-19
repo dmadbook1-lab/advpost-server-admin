@@ -164,6 +164,17 @@ public function store_otp_post() {
 
     // Fast2SMS credentials come from the environment (.env FAST2SMS_API_KEY).
     $fast2smsKey = function_exists('adv_env') ? trim((string) adv_env('FAST2SMS_API_KEY', '')) : '';
+    if ($fast2smsKey === '' && ENVIRONMENT === 'development') {
+        // Local dev only: no SMS provider key, so skip the SMS. The OTP is already
+        // stored in otp_verification; it is written to the log for testing.
+        log_message('error', "DEV ONLY: FAST2SMS_API_KEY not set; OTP for {$mobile} is {$otp}");
+        echo json_encode([
+            "response_code" => "1",
+            "status"        => "success",
+            "message"       => "OTP sent successfully (dev: SMS skipped)"
+        ]);
+        return;
+    }
     if ($fast2smsKey === '') {
         log_message('error', 'FAST2SMS_API_KEY is not configured; OTP SMS not sent');
         echo json_encode([

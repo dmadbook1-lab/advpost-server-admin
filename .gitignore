@@ -43,3 +43,6 @@ tests/mocks/database/ci_test.sqlite
 user_guide_src/build/
 bin/db_sync.conf
 storage/db_backups/
+
+# macOS AppleDouble files (created on exFAT drives)
+._*
